@@ -2,6 +2,8 @@
 
 English | [中文](README.zh.md)
 
+> **个人快照仓库（非官方）。** 本仓库基于官方 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 在 `0d1f500`（v0.1.6-alpha.1）的源码，额外包含让官方打包流水线产出 **Linux AppImage** 的补丁。编译方法见 [LINUX-APPIMAGE.md](LINUX-APPIMAGE.md)。
+
 DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
 
 It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).

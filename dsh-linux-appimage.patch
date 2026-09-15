@@ -1,0 +1,302 @@
+diff --git a/apps/desktop/electron-builder.config.mjs b/apps/desktop/electron-builder.config.mjs
+index 752a3c4134..4fd937aaed 100644
+--- a/apps/desktop/electron-builder.config.mjs
++++ b/apps/desktop/electron-builder.config.mjs
+@@ -50,7 +50,8 @@ export function createElectronBuilderConfig(
+   if (windowsSigner !== undefined) {
+     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
+   }
+-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
++  // Linux Desktop builds publish no auto-update metadata.
++  const update = unsigned || resolvedPlatform === 'linux' ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
+   return {
+     appId,
+@@ -113,6 +114,8 @@ export function createElectronBuilderConfig(
+     linux: {
+       category: 'Development',
+       target: ['AppImage'],
++      // The scoped package name is not a valid Linux executable name.
++      executableName: 'deepseek-harness',
+     },
+     nsis: {
+       include: fileURLToPath(new URL('./scripts/installer.nsh', import.meta.url)),
+diff --git a/apps/desktop/package.json b/apps/desktop/package.json
+index a0dec88993..dfd33d69ad 100644
+--- a/apps/desktop/package.json
++++ b/apps/desktop/package.json
+@@ -24,6 +24,8 @@
+     "package:win:x64": "tsx scripts/package-target.ts win-x64",
+     "package:win:x64:unsigned": "tsx scripts/package-target.ts win-x64 --unsigned",
+     "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",
++    "package:linux:x64": "tsx scripts/package-target.ts linux-x64",
++    "package:linux:x64:dir": "tsx scripts/package-target.ts linux-x64 --dir",
+     "upload:mac:arm64": "tsx scripts/upload-target.ts mac-arm64",
+     "upload:mac:x64": "tsx scripts/upload-target.ts mac-x64",
+     "upload:win:x64": "tsx scripts/upload-target.ts win-x64"
+diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+index b1661646e5..072a7137f2 100644
+--- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
++++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+@@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
+ export type DesktopAutoUpdateEnvironment = 'test' | 'production'
+ 
+ /** Directory name of one supported Desktop release target. */
+-export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
++export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /** Public updater URL for one release target. */
+ export interface DesktopAutoUpdateConfig {
+diff --git a/apps/desktop/scripts/desktop-build-paths.d.mts b/apps/desktop/scripts/desktop-build-paths.d.mts
+index add677f668..cb14153bf8 100644
+--- a/apps/desktop/scripts/desktop-build-paths.d.mts
++++ b/apps/desktop/scripts/desktop-build-paths.d.mts
+@@ -1,4 +1,5 @@
+-import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
++/** Desktop release targets that own an isolated build tree. */
++export type DesktopBuildTarget = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /** Mutable target directories plus the shared immutable download cache. */
+ export interface DesktopTargetBuildPaths {
+@@ -26,14 +27,14 @@ export function resolveDesktopBuildTarget(
+   env?: NodeJS.ProcessEnv,
+   hostPlatform?: NodeJS.Platform,
+   hostArch?: string,
+-): DesktopAutoUpdateTarget
++): DesktopBuildTarget
+ 
+ /**
+  * Return the mutable preparation and artifact directories owned by one release target.
+  * @param target - Supported Desktop target name.
+  * @returns Target paths plus the shared immutable download cache.
+  */
+-export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget): DesktopTargetBuildPaths
++export function desktopTargetBuildPaths(target: DesktopBuildTarget): DesktopTargetBuildPaths
+ 
+ /**
+  * Resolve the paths owned by the target selected in a packaging environment.
+diff --git a/apps/desktop/scripts/desktop-build-paths.mjs b/apps/desktop/scripts/desktop-build-paths.mjs
+index 770b3333e3..2185896032 100644
+--- a/apps/desktop/scripts/desktop-build-paths.mjs
++++ b/apps/desktop/scripts/desktop-build-paths.mjs
+@@ -4,14 +4,14 @@ import { join, resolve } from 'node:path'
+ 
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const BUILD_ROOT = join(APP_ROOT, '.desktop-build')
+-const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
++const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64'])
+ 
+ /**
+  * Resolve the fixed build target selected by a packaging environment.
+  * @param {NodeJS.ProcessEnv} env - Packaging environment.
+  * @param {NodeJS.Platform} hostPlatform - Build-host platform used when no target override exists.
+  * @param {string} hostArch - Build-host architecture used when no target override exists.
+- * @returns {'mac-arm64' | 'mac-x64' | 'win-x64'} Supported Desktop target name.
++ * @returns {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} Supported Desktop target name.
+  */
+ export function resolveDesktopBuildTarget(
+   env = process.env,
+@@ -25,12 +25,12 @@ export function resolveDesktopBuildTarget(
+   if (!SUPPORTED_TARGETS.has(target)) {
+     throw new Error(`desktop build paths: unsupported target ${target}`)
+   }
+-  return /** @type {'mac-arm64' | 'mac-x64' | 'win-x64'} */ (target)
++  return /** @type {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} */ (target)
+ }
+ 
+ /**
+  * Return the mutable preparation and artifact directories owned by one release target.
+- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target - Supported Desktop target name.
++ * @param {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} target - Supported Desktop target name.
+  * @returns {{ root: string, artifacts: string, runtime: string, packageSet: string, dsh: string, dshPnpm: string, nodeExtract: string, packedDsh: string, packedVendor: string, packedLandlock: string, downloads: string }} Target paths plus the shared immutable download cache.
+  */
+ export function desktopTargetBuildPaths(target) {
+diff --git a/apps/desktop/scripts/desktop-upload-plan.ts b/apps/desktop/scripts/desktop-upload-plan.ts
+index ff8a2f4868..4d2a806f71 100644
+--- a/apps/desktop/scripts/desktop-upload-plan.ts
++++ b/apps/desktop/scripts/desktop-upload-plan.ts
+@@ -19,6 +19,7 @@ const TARGETS = {
+   'mac-arm64': { platform: 'darwin', arch: 'arm64', os: 'mac' },
+   'mac-x64': { platform: 'darwin', arch: 'x64', os: 'mac' },
+   'win-x64': { platform: 'win32', arch: 'x64', os: 'win' },
++  'linux-x64': { platform: 'linux', arch: 'x64', os: 'linux' },
+ } as const satisfies Record<DesktopPackageTargetName, {
+   readonly platform: NodeJS.Platform
+   readonly arch: string
+diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
+index 22c303d2bc..a58d58ab74 100644
+--- a/apps/desktop/scripts/package-target.ts
++++ b/apps/desktop/scripts/package-target.ts
+@@ -28,14 +28,14 @@ const DESKTOP_UPLOAD_CREDENTIAL_ENV_NAMES = new Set([
+ ])
+ 
+ /** Fixed platform and architecture identifiers exposed by package scripts. */
+-export type DesktopPackageTargetName = 'mac-arm64' | 'mac-x64' | 'win-x64'
++export type DesktopPackageTargetName = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'
+ 
+ /** One supported release target and its electron-builder selectors. */
+ export interface DesktopPackageTarget {
+   readonly name: DesktopPackageTargetName
+-  readonly platform: 'darwin' | 'win32'
++  readonly platform: 'darwin' | 'linux' | 'win32'
+   readonly arch: 'arm64' | 'x64'
+-  readonly builderPlatform: '--mac' | '--win'
++  readonly builderPlatform: '--mac' | '--linux' | '--win'
+   readonly builderArch: '--arm64' | '--x64'
+ }
+ 
+@@ -61,6 +61,13 @@ const TARGETS: Record<DesktopPackageTargetName, DesktopPackageTarget> = {
+     builderPlatform: '--win',
+     builderArch: '--x64',
+   },
++  'linux-x64': {
++    name: 'linux-x64',
++    platform: 'linux',
++    arch: 'x64',
++    builderPlatform: '--linux',
++    builderArch: '--x64',
++  },
+ }
+ 
+ /**
+@@ -156,6 +163,9 @@ export function resolveDesktopPackageTarget(
+   if (target.platform === 'win32' && (hostPlatform !== 'win32' || hostArch !== 'x64')) {
+     throw new Error('desktop package: win-x64 requires a Windows x64 build host')
+   }
++  if (target.platform === 'linux' && (hostPlatform !== 'linux' || hostArch !== 'x64')) {
++    throw new Error('desktop package: linux-x64 requires a Linux x64 build host')
++  }
+   if (target.platform === 'darwin' && hostPlatform !== 'darwin') {
+     throw new Error(`desktop package: ${name} requires a macOS build host`)
+   }
+@@ -272,8 +282,11 @@ async function main(): Promise<void> {
+   const invocation = parseDesktopPackageInvocation(process.argv.slice(2))
+   const { target } = invocation
+   const buildPaths = desktopTargetBuildPaths(target.name)
+-  const releaseRecordPath = join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
+-  if (!invocation.prepareOnly && !invocation.unsigned) {
++  // Linux ships no auto-update channel, so it owns no release completion record.
++  const releaseRecordPath = target.platform === 'linux'
++    ? undefined
++    : join(buildPaths.artifacts, desktopBuildRecordFilename(target.name))
++  if (releaseRecordPath !== undefined && !invocation.prepareOnly && !invocation.unsigned) {
+     rmSync(releaseRecordPath, { force: true })
+     rmSync(`${releaseRecordPath}.tmp`, { force: true })
+   }
+@@ -325,7 +338,10 @@ async function main(): Promise<void> {
+   } else {
+     await runPnpm(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv)
+   }
+-  if (!invocation.directory && !invocation.unsigned) writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
++  // Linux ships no auto-update channel, so it emits no release completion record.
++  if (!invocation.directory && !invocation.unsigned && target.platform !== 'linux') {
++    writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
++  }
+ }
+ 
+ if (process.argv[1] !== undefined && import.meta.filename === resolve(process.argv[1])) await main()
+diff --git a/apps/desktop/tests/desktop-build-paths.spec.ts b/apps/desktop/tests/desktop-build-paths.spec.ts
+index 1a309a2851..6e957fd081 100644
+--- a/apps/desktop/tests/desktop-build-paths.spec.ts
++++ b/apps/desktop/tests/desktop-build-paths.spec.ts
+@@ -38,13 +38,14 @@ describe('desktop build paths', () => {
+     expect(arm64.downloads).not.toContain(`${sep}targets${sep}`)
+   })
+ 
+-  it('resolves environment overrides and rejects unsupported targets', () => {
++  it('resolves environment overrides and rejects unknown targets', () => {
+     expect(resolveDesktopBuildTarget({
+       DSH_DESKTOP_TARGET_PLATFORM: 'darwin',
+       DSH_DESKTOP_TARGET_ARCH: 'x64',
+     }, 'darwin', 'arm64')).toBe('mac-x64')
+     expect(resolveDesktopBuildTarget({}, 'win32', 'x64')).toBe('win-x64')
+-    expect(() => resolveDesktopBuildTarget({}, 'linux', 'x64')).toThrow(/unsupported target/u)
+-    expect(() => desktopTargetBuildPaths('linux-x64' as 'mac-x64')).toThrow(/unsupported target/u)
++    expect(resolveDesktopBuildTarget({}, 'linux', 'x64')).toBe('linux-x64')
++    expect(desktopTargetBuildPaths('linux-x64').artifacts).toContain(join('targets', 'linux-x64', 'artifacts'))
++    expect(() => resolveDesktopBuildTarget({}, 'aix', 'x64')).toThrow(/unsupported target/u)
+   })
+ })
+diff --git a/apps/desktop/tests/fixtures/runtime-payload-smoke.mjs b/apps/desktop/tests/fixtures/runtime-payload-smoke.mjs
+index da2d5c478d..9c9d86f1a1 100644
+--- a/apps/desktop/tests/fixtures/runtime-payload-smoke.mjs
++++ b/apps/desktop/tests/fixtures/runtime-payload-smoke.mjs
+@@ -64,17 +64,14 @@ async function checkPty() {
+   }
+ }
+ 
+-/** fs-ext implements seek on Windows through SetFilePointerEx and on POSIX through lseek. */
+-function checkFsExt() {
+-  const fsExt = requireRuntime('fs-ext')
+-  const file = join(scratch, 'seek.txt')
+-  writeFileSync(file, 'abcdef', { flag: 'wx', mode: 0o600 })
+-  const fd = openSync(file, 'r')
++/** The session write lease locks its directory through the packaged POSIX flock binding. */
++async function checkFlock() {
++  const { tryLockExclusive } = requireRuntime('@deepseek-ai/node-addon-system/flock')
++  const file = join(scratch, 'lease.lock')
++  writeFileSync(file, '', { flag: 'wx', mode: 0o600 })
++  const fd = openSync(file, 'r+')
+   try {
+-    assert.equal(fsExt.seekSync(fd, 2, fsExt.constants.SEEK_SET), 2)
+-    const bytes = Buffer.alloc(4)
+-    assert.equal(readSync(fd, bytes, 0, bytes.length, null), 4)
+-    assert.equal(bytes.toString(), 'cdef')
++    await tryLockExclusive(fd)
+   } finally {
+     closeSync(fd)
+   }
+@@ -121,7 +118,8 @@ function checkHtml() {
+ }
+ 
+ try {
+-  checkFsExt()
++  // Windows keeps the Harness semaphore lease, so the POSIX flock binding is absent there.
++  if (process.platform !== 'win32') await checkFlock()
+   checkKoffi()
+   await checkSharp()
+   checkHtml()
+@@ -134,5 +132,5 @@ try {
+ // Natural event-loop drain includes node-pty's worker and console-list helper teardown.
+ process.once('beforeExit', () => {
+   console.log(JSON.stringify({ node: process.versions.node, platform: process.platform, arch: process.arch,
+-    fsExt: true, koffi: true, sharp: true, html: true, pty: true }))
++    flock: process.platform !== 'win32', koffi: true, sharp: true, html: true, pty: true }))
+ })
+diff --git a/apps/desktop/tests/package-target.spec.ts b/apps/desktop/tests/package-target.spec.ts
+index d284747e86..2ed9a8c96e 100644
+--- a/apps/desktop/tests/package-target.spec.ts
++++ b/apps/desktop/tests/package-target.spec.ts
+@@ -19,6 +19,9 @@ describe('desktop package target', () => {
+     expect(resolveDesktopPackageTarget('win-x64', 'win32', 'x64')).toMatchObject({
+       platform: 'win32', arch: 'x64', builderPlatform: '--win', builderArch: '--x64',
+     })
++    expect(resolveDesktopPackageTarget('linux-x64', 'linux', 'x64')).toMatchObject({
++      platform: 'linux', arch: 'x64', builderPlatform: '--linux', builderArch: '--x64',
++    })
+   })
+ 
+   it('allows an Apple Silicon host to build the Intel target through Rosetta', () => {
+@@ -26,7 +29,8 @@ describe('desktop package target', () => {
+   })
+ 
+   it('rejects unsupported targets and hosts before building', () => {
+-    expect(() => resolveDesktopPackageTarget('linux-x64', 'linux', 'x64')).toThrow(/unsupported target/u)
++    expect(() => resolveDesktopPackageTarget('linux-x64', 'darwin', 'x64')).toThrow(/Linux x64/u)
++    expect(() => resolveDesktopPackageTarget('linux-arm64', 'linux', 'x64')).toThrow(/unsupported target/u)
+     expect(() => resolveDesktopPackageTarget('win-x64', 'darwin', 'arm64')).toThrow(/Windows x64/u)
+     expect(() => resolveDesktopPackageTarget('mac-arm64', 'darwin', 'x64')).toThrow(/Apple Silicon/u)
+     expect(() => resolveDesktopPackageTarget('mac-arm64', 'linux', 'arm64')).toThrow(/macOS/u)
+diff --git a/package.json b/package.json
+index d0d5d9817d..8ec8036706 100644
+--- a/package.json
++++ b/package.json
+@@ -37,6 +37,8 @@
+     "package:desktop:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64",
+     "package:desktop:win:x64:unsigned": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64:unsigned",
+     "package:desktop:win:x64:dir": "pnpm --filter @deepseek-ai/dsh-desktop run package:win:x64:dir",
++    "package:desktop:linux:x64": "pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64",
++    "package:desktop:linux:x64:dir": "pnpm --filter @deepseek-ai/dsh-desktop run package:linux:x64:dir",
+     "upload:mac:arm64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:mac:arm64",
+     "upload:mac:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:mac:x64",
+     "upload:win:x64": "pnpm --filter @deepseek-ai/dsh-desktop run upload:win:x64",
