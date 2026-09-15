@@ -69,6 +69,9 @@ if [ -n "$PROXY" ]; then
 else
   log "未使用代理（依赖 npmmirror 与 npmjs 直连）"
 fi
+# Electron / electron-builder 的产物走 npmmirror，直连更稳（经代理易 TLS 抖动）
+export no_proxy="npmmirror.com,.npmmirror.com,localhost,127.0.0.1${no_proxy:+,$no_proxy}"
+export NO_PROXY="$no_proxy"
 # Node 内置 fetch 走代理（prepare-runtime 下载 Node.js 用）
 export NODE_USE_ENV_PROXY=1
 export ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR
@@ -126,8 +129,15 @@ mkdir -p "$OUT"
 [ -w "$OUT" ] || die "输出目录不可写: $OUT"
 LOG="$OUT/build-$(date +%Y%m%d-%H%M%S).log"
 log "开始打包（日志: $LOG）"
-pnpm run package:desktop:linux:x64 2>&1 | tee "$LOG"
-STATUS="${PIPESTATUS[0]}"
+: > "$LOG"
+STATUS=1
+for attempt in 1 2; do
+  pnpm run package:desktop:linux:x64 2>&1 | tee -a "$LOG"
+  STATUS="${PIPESTATUS[0]}"
+  [ "$STATUS" -eq 0 ] && break
+  log "第 $attempt 次打包失败（exit $STATUS），15 秒后重试"
+  sleep 15
+done
 [ "$STATUS" -eq 0 ] || die "打包失败（exit $STATUS），见 $LOG"
 
 # 7. 收集产物（复制后逐字节校验，避免静默截断或丢失）

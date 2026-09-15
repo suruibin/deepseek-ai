@@ -114,6 +114,7 @@ export function createElectronBuilderConfig(
     linux: {
       category: 'Development',
       target: ['AppImage'],
+      icon: 'build/icon.png',
       // The scoped package name is not a valid Linux executable name.
       executableName: 'deepseek-harness',
     },
