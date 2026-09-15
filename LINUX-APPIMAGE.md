@@ -18,7 +18,8 @@
 - `scripts/desktop-build-paths.mjs` / `.d.mts`：目标白名单与类型加入 `linux-x64`
 - `scripts/package-target.ts`：新增 `linux-x64` 目标（`--linux --x64`）与 Linux x64 宿主机校验；Linux 跳过 release completion record
 - `scripts/desktop-auto-update-environment.d.mts`、`scripts/desktop-upload-plan.ts`：类型与上传计划补齐 linux 条目
-- `electron-builder.config.mjs`：Linux 不生成自动更新元数据；指定合法的 `executableName` 与图标 `build/icon.png`
+- `electron-builder.config.mjs`：Linux 不生成自动更新元数据；指定合法的 `executableName`、图标 `build/icon.png`，并用 `syncDesktopName` 让 `.desktop`、Electron `app_id` 与可执行名一致
+- `apps/desktop/package.json`：新增 `desktopName`，使窗口 `StartupWMClass` 与桌面项匹配（否则运行中的窗口会用通用图标）
 - `package.json`（根与 `apps/desktop`）：新增 `package:desktop:linux:x64` 脚本
 - `tests/fixtures/runtime-payload-smoke.mjs`：上游该断言仍在校验已废弃的 `fs-ext`，改为校验当前的 `@deepseek-ai/node-addon-system/flock`
 - `tests/package-target.spec.ts`、`tests/desktop-build-paths.spec.ts`：断言同步

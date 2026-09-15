@@ -115,6 +115,8 @@ export function createElectronBuilderConfig(
       category: 'Development',
       target: ['AppImage'],
       icon: 'build/icon.png',
+      // Keep the desktop entry name, Electron app_id, and executable consistent.
+      syncDesktopName: true,
       // The scoped package name is not a valid Linux executable name.
       executableName: 'deepseek-harness',
     },

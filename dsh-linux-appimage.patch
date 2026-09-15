@@ -1,5 +1,5 @@
 diff --git a/apps/desktop/electron-builder.config.mjs b/apps/desktop/electron-builder.config.mjs
-index 752a3c4134..5139b746f1 100644
+index 752a3c4134..7d1b668d36 100644
 --- a/apps/desktop/electron-builder.config.mjs
 +++ b/apps/desktop/electron-builder.config.mjs
 @@ -50,7 +50,8 @@ export function createElectronBuilderConfig(
@@ -12,21 +12,31 @@ index 752a3c4134..5139b746f1 100644
    const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
    return {
      appId,
-@@ -113,6 +114,9 @@ export function createElectronBuilderConfig(
+@@ -113,6 +114,11 @@ export function createElectronBuilderConfig(
      linux: {
        category: 'Development',
        target: ['AppImage'],
 +      icon: 'build/icon.png',
++      // Keep the desktop entry name, Electron app_id, and executable consistent.
++      syncDesktopName: true,
 +      // The scoped package name is not a valid Linux executable name.
 +      executableName: 'deepseek-harness',
      },
      nsis: {
        include: fileURLToPath(new URL('./scripts/installer.nsh', import.meta.url)),
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
-index a0dec88993..dfd33d69ad 100644
+index a0dec88993..18fb269443 100644
 --- a/apps/desktop/package.json
 +++ b/apps/desktop/package.json
-@@ -24,6 +24,8 @@
+@@ -6,6 +6,7 @@
+   "license": "MIT",
+   "type": "module",
+   "main": "lib/main.js",
++  "desktopName": "deepseek-harness.desktop",
+   "scripts": {
+     "build": "tsc -b && tsdown",
+     "dev": "tsx scripts/dev.ts",
+@@ -24,6 +25,8 @@
      "package:win:x64": "tsx scripts/package-target.ts win-x64",
      "package:win:x64:unsigned": "tsx scripts/package-target.ts win-x64 --unsigned",
      "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",

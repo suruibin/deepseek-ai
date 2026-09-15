@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "main": "lib/main.js",
+  "desktopName": "deepseek-harness.desktop",
   "scripts": {
     "build": "tsc -b && tsdown",
     "dev": "tsx scripts/dev.ts",
