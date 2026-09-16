@@ -55,6 +55,10 @@ export function createElectronBuilderConfig(
   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
   return {
     appId,
+    // A local unpacked Electron distribution avoids the @electron/get checksum fetch on every package.
+    ...(env.DSH_DESKTOP_ELECTRON_DIST === undefined || env.DSH_DESKTOP_ELECTRON_DIST === ''
+      ? {}
+      : { electronDist: env.DSH_DESKTOP_ELECTRON_DIST }),
     productName: 'DeepSeek Harness',
     artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
     directories: { output: unsigned ? join(buildPaths.root, 'unsigned-artifacts') : buildPaths.artifacts },

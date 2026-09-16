@@ -106,6 +106,9 @@ function createWindow(preload: string, show = false): BrowserWindow {
       webSecurity: true,
     },
   })
+  // The application menu stays registered so its accelerators keep working (Ctrl+Q quit,
+  // Ctrl+, plugin manager) while the menu bar itself is kept out of the window on Linux/Windows.
+  if (process.platform !== 'darwin') window.setMenuBarVisibility(false)
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).protocol !== `${SCHEME}:`) event.preventDefault()

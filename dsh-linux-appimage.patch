@@ -1,8 +1,8 @@
 diff --git a/apps/desktop/electron-builder.config.mjs b/apps/desktop/electron-builder.config.mjs
-index 752a3c4134..7d1b668d36 100644
+index 752a3c4134..328fa49c3f 100644
 --- a/apps/desktop/electron-builder.config.mjs
 +++ b/apps/desktop/electron-builder.config.mjs
-@@ -50,7 +50,8 @@ export function createElectronBuilderConfig(
+@@ -50,10 +50,15 @@ export function createElectronBuilderConfig(
    if (windowsSigner !== undefined) {
      installWindowsNsisBootstrapSigner({ sign: windowsSigner })
    }
@@ -12,7 +12,14 @@ index 752a3c4134..7d1b668d36 100644
    const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
    return {
      appId,
-@@ -113,6 +114,11 @@ export function createElectronBuilderConfig(
++    // A local unpacked Electron distribution avoids the @electron/get checksum fetch on every package.
++    ...(env.DSH_DESKTOP_ELECTRON_DIST === undefined || env.DSH_DESKTOP_ELECTRON_DIST === ''
++      ? {}
++      : { electronDist: env.DSH_DESKTOP_ELECTRON_DIST }),
+     productName: 'DeepSeek Harness',
+     artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
+     directories: { output: unsigned ? join(buildPaths.root, 'unsigned-artifacts') : buildPaths.artifacts },
+@@ -113,6 +118,11 @@ export function createElectronBuilderConfig(
      linux: {
        category: 'Development',
        target: ['AppImage'],
@@ -206,6 +213,20 @@ index 22c303d2bc..a58d58ab74 100644
  }
  
  if (process.argv[1] !== undefined && import.meta.filename === resolve(process.argv[1])) await main()
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index e63e21588a..cdf7ede86b 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -106,6 +106,9 @@ function createWindow(preload: string, show = false): BrowserWindow {
+       webSecurity: true,
+     },
+   })
++  // The application menu stays registered so its accelerators keep working (Ctrl+Q quit,
++  // Ctrl+, plugin manager) while the menu bar itself is kept out of the window on Linux/Windows.
++  if (process.platform !== 'darwin') window.setMenuBarVisibility(false)
+   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+   window.webContents.on('will-navigate', (event, url) => {
+     if (new URL(url).protocol !== `${SCHEME}:`) event.preventDefault()
 diff --git a/apps/desktop/tests/desktop-build-paths.spec.ts b/apps/desktop/tests/desktop-build-paths.spec.ts
 index 1a309a2851..6e957fd081 100644
 --- a/apps/desktop/tests/desktop-build-paths.spec.ts

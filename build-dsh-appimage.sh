@@ -127,14 +127,42 @@ fi
 # 6. 打包
 mkdir -p "$OUT"
 [ -w "$OUT" ] || die "输出目录不可写: $OUT"
+
+# 优先复用本地缓存的 Electron 发行包：@electron/get 只缓存 zip、不缓存 SHASUMS256.txt，
+# 默认路径每次 packaging 都要联网取校验和，网络抖动就会中断打包。
+ELECTRON_VERSION="$(cat "$REPO/apps/desktop/node_modules/electron/dist/version" 2>/dev/null || true)"
+if [ -n "$ELECTRON_VERSION" ]; then
+  CACHED_ZIP="$(ls "$HOME"/.cache/electron/*/electron-v"$ELECTRON_VERSION"-linux-x64.zip 2>/dev/null | head -1 || true)"
+  if [ -n "$CACHED_ZIP" ]; then
+    ELECTRON_DIST="$REPO/apps/desktop/.desktop-build/electron-dist/electron-v$ELECTRON_VERSION-linux-x64"
+    if [ ! -x "$ELECTRON_DIST/electron" ]; then
+      log "解压本地 Electron $ELECTRON_VERSION（$CACHED_ZIP）"
+      rm -rf "$ELECTRON_DIST"
+      mkdir -p "$ELECTRON_DIST"
+      if command -v unzip >/dev/null 2>&1; then
+        unzip -q -o "$CACHED_ZIP" -d "$ELECTRON_DIST" || true
+      else
+        7z x -y "-o$ELECTRON_DIST" "$CACHED_ZIP" >/dev/null || true
+      fi
+    fi
+    if [ -x "$ELECTRON_DIST/electron" ]; then
+      export DSH_DESKTOP_ELECTRON_DIST="$ELECTRON_DIST"
+      log "使用本地 Electron dist: $ELECTRON_DIST"
+    else
+      rm -rf "$ELECTRON_DIST"
+      log "本地 Electron 解压失败，回退联网下载"
+    fi
+  fi
+fi
+
 LOG="$OUT/build-$(date +%Y%m%d-%H%M%S).log"
 log "开始打包（日志: $LOG）"
 : > "$LOG"
 STATUS=1
 for attempt in 1 2; do
-  pnpm run package:desktop:linux:x64 2>&1 | tee -a "$LOG"
-  STATUS="${PIPESTATUS[0]}"
-  [ "$STATUS" -eq 0 ] && break
+  STATUS=0
+  pnpm run package:desktop:linux:x64 2>&1 | tee -a "$LOG" || STATUS=$?
+  if [ "$STATUS" -eq 0 ]; then break; fi
   log "第 $attempt 次打包失败（exit $STATUS），15 秒后重试"
   sleep 15
 done

@@ -45,7 +45,7 @@
 ./build-dsh-appimage.sh --proxy http://127.0.0.1:1080
 ```
 
-脚本按顺序执行：探测代理 → 检查/克隆源码 → 幂等应用补丁 → `pnpm install` → 补装 Electron 二进制（pnpm 的 `strictDepBuilds` 会跳过它的 postinstall）→ 预取内置 Node.js 运行时 → `pnpm run package:desktop:linux:x64`（失败自动重试一次；`npmmirror.com` 走直连，避免经代理时的 TLS 抖动）→ 复制产物并逐字节校验。
+脚本按顺序执行：探测代理 → 检查/克隆源码 → 幂等应用补丁 → `pnpm install` → 补装 Electron 二进制（pnpm 的 `strictDepBuilds` 会跳过它的 postinstall）→ 预取内置 Node.js 运行时 → 复用本地缓存的 Electron 发行包（`@electron/get` 只缓存 zip、不缓存 `SHASUMS256.txt`，这里解压本地 zip 并通过 `DSH_DESKTOP_ELECTRON_DIST` 交给 electron-builder）→ `pnpm run package:desktop:linux:x64`（失败自动重试一次；`npmmirror.com` 走直连，避免经代理时的 TLS 抖动）→ 复制产物并逐字节校验。
 
 可用环境变量覆盖：`DSH_REPO`、`DSH_OUT`、`DSH_DESKTOP_APP_ID`、`NODE_MIRROR`、`ELECTRON_MIRROR`。
 
