@@ -38,6 +38,53 @@ index 0000000..11c54f4
 +# A local mirror such as https://registry.npmmirror.com speeds up repeated local packages.
 +# DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com
 \ No newline at end of file
+diff --git a/apps/desktop/README.i18n.yaml b/apps/desktop/README.i18n.yaml
+index c73faa8..9de777f 100644
+--- a/apps/desktop/README.i18n.yaml
++++ b/apps/desktop/README.i18n.yaml
+@@ -21,8 +21,8 @@
+   en: 09f0b75af9f0ed14
+   zh: 60bbc2e67d5e87a8
+ /deepseek-harness-desktop/installation-ownership:
+-  en: 22153a298a6662e1
+-  zh: 3600803c8c9d0274
++  en: 8fbe49fee7f24f44
++  zh: 4344a1d048a2112b
+ /deepseek-harness-desktop/installation-ownership/runtime-and-plugin-activation:
+   en: a1a47b09f4a72ba4
+   zh: 7b1cf27f0b72cf31
+diff --git a/apps/desktop/README.md b/apps/desktop/README.md
+index 79101fc..da1f71b 100644
+--- a/apps/desktop/README.md
++++ b/apps/desktop/README.md
+@@ -112,9 +112,9 @@ Electron chooses typed English or Chinese shell copy from its application locale
+ 
+ Windows and macOS relay native fullscreen transitions and the state after each page load to the renderer, so overlays can adapt their caption clearance.
+ 
+-Windows uses a 40-DIP caption with native window controls and colors synchronized from the application palette. Localized Application and Edit entries beside the sidebar toggle open native popup menus. They mount only after the application frame publishes its shell overlay seat, and remain absent during startup loading. Application provides Check for Updates and Exit; Edit provides undo, redo, cut, copy, paste, delete, and select all by sending the corresponding keys to the focused editor, independently of custom shortcut bindings. Plugin management uses the main application's Plugins page. No separate native menu row appears on Alt. Other platforms retain their native menus. Editable fields retain keyboard commands and a context menu without shortcut labels; Chromium supplies command availability, and selected read-only text offers Copy.
++Windows uses a 40-DIP caption with native window controls and colors synchronized from the application palette. Localized Application and Edit entries beside the sidebar toggle open native popup menus. They mount only after the application frame publishes its shell overlay seat, and remain absent during startup loading. Application provides Check for Updates and Exit; Edit provides undo, redo, cut, copy, paste, delete, and select all by sending the corresponding keys to the focused editor, independently of custom shortcut bindings. Plugin management uses the main application's Plugins page. No separate native menu row appears on Alt. Linux installs no application menu at all, because Electron paints that menu inside the window and the Web client owns the window chrome there. Editable fields retain keyboard commands and a context menu without shortcut labels; Chromium supplies command availability, and selected read-only text offers Copy.
+ 
+-On macOS the custom menu retains Electron's standard Window menu and application hide commands, including Minimize (⌘M) and Hide (⌘H). Linux keeps the application and Edit menus.
++On macOS the custom menu retains Electron's standard Window menu and application hide commands, including Minimize (⌘M) and Hide (⌘H).
+ 
+ ### Runtime and plugin activation
+ 
+diff --git a/apps/desktop/README.zh.md b/apps/desktop/README.zh.md
+index 190e5bc..fec0035 100644
+--- a/apps/desktop/README.zh.md
++++ b/apps/desktop/README.zh.md
+@@ -114,9 +114,9 @@ Electron 根据应用语言选择类型化的英文或中文 shell 文案，并
+ 
+ Windows 和 macOS 会在原生全屏切换及每次页面加载后向渲染器同步全屏状态，让浮层调整顶栏避让距离。
+ 
+-Windows 使用 40 DIP 顶栏，保留原生窗口按钮，颜色随应用调色板同步。侧栏开关旁的本地化“应用”和“编辑”入口打开原生弹出菜单。仅当应用框架发布 shell overlay 席位后才挂载菜单，启动加载期间不显示。“应用”提供检查更新和退出；“编辑”向当前编辑器发送对应按键，提供撤销、重做、剪切、复制、粘贴、删除和全选，不受自定义快捷键绑定影响。插件管理使用主应用的“插件”页面。按 Alt 不会出现额外的原生菜单行。其他平台保留原生菜单。可编辑区域保留快捷键和不带快捷键标注的右键菜单；命令可用状态由 Chromium 提供，选中的只读文本提供“复制”命令。
++Windows 使用 40 DIP 顶栏，保留原生窗口按钮，颜色随应用调色板同步。侧栏开关旁的本地化“应用”和“编辑”入口打开原生弹出菜单。仅当应用框架发布 shell overlay 席位后才挂载菜单，启动加载期间不显示。“应用”提供检查更新和退出；“编辑”向当前编辑器发送对应按键，提供撤销、重做、剪切、复制、粘贴、删除和全选，不受自定义快捷键绑定影响。插件管理使用主应用的“插件”页面。按 Alt 不会出现额外的原生菜单行。Linux 完全不安装应用菜单，因为 Electron 会把应用菜单绘制在窗口内，而窗口顶栏由 Web 客户端自管。可编辑区域保留快捷键和不带快捷键标注的右键菜单；命令可用状态由 Chromium 提供，选中的只读文本提供“复制”命令。
+ 
+-macOS 上自定义菜单保留 Electron 的标准 Window 菜单及应用隐藏命令，包括 Minimize（⌘M）和 Hide（⌘H）。Linux 保留应用菜单和 Edit 菜单。
++macOS 上自定义菜单保留 Electron 的标准 Window 菜单及应用隐藏命令，包括 Minimize（⌘M）和 Hide（⌘H）。
+ 
+ ### 运行时与插件激活
+ 
 diff --git a/apps/desktop/package.json b/apps/desktop/package.json
 index cd0def7..523d695 100644
 --- a/apps/desktop/package.json
@@ -3104,6 +3151,39 @@ index 106830b..6110c10 100644
  const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
    resolveDesktopPackageTarget(target))
  if (windows && !values.unsigned) await verifyWindowsCode(application)
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index b4b8153..0615808 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -936,9 +936,6 @@ async function main(): Promise<void> {
+   // its standard menus and application hide commands declared explicitly.
+   // Keep app.name stable: Electron derives its default userData directory from it.
+   const darwin = process.platform === 'darwin'
+-  const platformMenus = (): MenuItemConstructorOptions[] => darwin
+-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' }]
+-    : [{ role: 'editMenu' }]
+   const hideCommands: MenuItemConstructorOptions[] = darwin
+     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },
+       { role: 'hideOthers', label: currentDesktopLocale().messages.hideOtherApplications },
+@@ -974,10 +971,14 @@ async function main(): Promise<void> {
+     { role: 'toggleDevTools', visible: false, accelerator: 'F12' },
+   ]
+   const refreshApplicationMenu = (): void => {
+-    Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : [{
+-      label: darwin ? app.name : currentDesktopLocale().messages.application,
+-      submenu: [...applicationItems(), ...devToolsItems],
+-    }, ...platformMenus()]))
++    // Linux paints the application menu inside the window, so the product window
++    // removes it: the Web client owns that chrome. Windows keeps the same menu
++    // reachable from the caption menubar.
++    if (process.platform === 'linux') Menu.setApplicationMenu(null)
++    else Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32' ? devToolsItems : [
++      { label: app.name, submenu: [...applicationItems(), ...devToolsItems] },
++      shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' },
++    ]))
+     tray?.relabel()
+   }
+   refreshApplicationMenu()
 diff --git a/apps/desktop/tests/desktop-auto-update-environment.spec.ts b/apps/desktop/tests/desktop-auto-update-environment.spec.ts
 index c33a938..86360ab 100644
 --- a/apps/desktop/tests/desktop-auto-update-environment.spec.ts
@@ -3194,6 +3274,42 @@ index d0d7bb9..97b319a 100644
 -    koffi: true, sharp: true, html: true, pty: true, pnpm: true, grep: true, glob: true }))
 +    koffi: true, sharp: sharpChecked, html: true, pty: true, pnpm: true, grep: true, glob: true }))
  })
+diff --git a/apps/desktop/tests/main-startup.spec.ts b/apps/desktop/tests/main-startup.spec.ts
+index b6b6fd4..6256b71 100644
+--- a/apps/desktop/tests/main-startup.spec.ts
++++ b/apps/desktop/tests/main-startup.spec.ts
+@@ -867,23 +867,24 @@ describe('desktop main startup', () => {
+     await edit
+   })
+ 
+-  it.each(['darwin', 'linux'] as const)('adds the product File menu and standard window commands only on macOS (%s)', async (platform) => {
++  it.each(['darwin', 'linux'] as const)('installs the application menu only on macOS (%s)', async (platform) => {
+     vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+     await import('../src/main.ts')
+     await harness.preparing.promise
++    if (platform === 'linux') {
++      expect(harness.menu.setApplicationMenu).toHaveBeenCalledExactlyOnceWith(null)
++      return
++    }
+     const describeItem = (item: MenuItemConstructorOptions): string | undefined =>
+       item.role ?? (item.type === 'separator' ? 'separator' : item.label)
+     const template = harness.menu.buildFromTemplate.mock.calls
+       .map(call => call[0])
+       .find(items => items.some(item => item.role === 'editMenu'))
+     if (template === undefined) throw new Error('application menu missing')
+-    expect(template.map(describeItem)).toEqual(platform === 'darwin'
+-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
+-      : ['Application', 'editMenu'])
++    expect(template.map(describeItem)).toEqual(['Desktop test', en.fileMenu, 'editMenu', 'windowMenu'])
+     const application = template[0]!.submenu as MenuItemConstructorOptions[]
+-    expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
+-      ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
+-      : ['about', 'separator', en.checkUpdatesMenu, 'separator', 'quit'])
++    expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(
++      ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit'])
+     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
+   })
+ 
 diff --git a/apps/desktop/tests/package-target.spec.ts b/apps/desktop/tests/package-target.spec.ts
 index c802f66..5bd7a9b 100644
 --- a/apps/desktop/tests/package-target.spec.ts
