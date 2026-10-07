@@ -85,6 +85,15 @@ it('retains native prebuilds for the selected macOS architecture', () => {
   expect(desktopRuntimeFileExclusion('node-pty/prebuilds/win32-x64/conpty.node', mac, 'darwin-arm64')).toBeDefined()
 })
 
+it('omits sharp native binaries on Linux, where their bundled glib collides with the Electron host glib', () => {
+  const linux = { platform: 'linux' as const, arch: 'x64' }
+  expect(desktopRuntimeFileExclusion('@img/sharp-linux-x64/lib/sharp-linux-x64-0.35.5.node', linux, 'linux-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('@img/sharp-libvips-linux-x64/lib/libvips-cpp.so.8.18.3', linux, 'linux-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('@img/sharp-linux-x64/package.json', linux, 'linux-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('sharp/dist/sharp.cjs', linux, 'linux-x64')).toBeUndefined()
+  expect(desktopRuntimeFileExclusion('@img/sharp-win32-x64/lib/libvips-42.dll', windows, 'win32-x64')).toBeUndefined()
+})
+
 it.each([
   ['linux', 'x64', 'linux-x64'],
   ['linux', 'arm64', 'wasm'],

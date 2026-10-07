@@ -154,12 +154,16 @@ function checkHtml() {
   assert.match(markdown, /\| x\s+\| 7\s+\|/u)
 }
 
+// Desktop Linux packages omit sharp's native binaries, whose bundled libvips glib collides with the
+// host glib Electron loads. See https://sharp.pixelplumbing.com/install#electron-and-linux
+const sharpChecked = process.platform !== 'linux'
+
 try {
   const builtin = requireRuntime('node-addon-require-builtin')
   assert.equal(typeof builtin.requireBuiltin('internal/modules/esm/loader').getOrInitializeCascadedLoader, 'function')
   checkPnpm()
   checkKoffi()
-  await checkSharp()
+  if (sharpChecked) await checkSharp()
   checkHtml()
   await checkPty()
   await checkSearch()
@@ -171,5 +175,5 @@ try {
 // Natural event-loop drain includes node-pty's worker and console-list helper teardown.
 process.once('beforeExit', () => {
   console.log(JSON.stringify({ node: process.versions.node, platform: process.platform, arch: process.arch,
-    koffi: true, sharp: true, html: true, pty: true, pnpm: true, grep: true, glob: true }))
+    koffi: true, sharp: sharpChecked, html: true, pty: true, pnpm: true, grep: true, glob: true }))
 })

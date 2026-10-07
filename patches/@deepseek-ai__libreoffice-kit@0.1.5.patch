@@ -1,0 +1,20 @@
+diff --git a/lib/index.js b/lib/index.js
+index aac18a01c09916f51a76ceb81e47f75109d8497b..164925015eaaa0435fe95bf5da179ff966137ef3 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1,5 +1,5 @@
+ import { createRequire } from "node:module";
+-import { closeSync, constants, createWriteStream, lstatSync, readSync, readdirSync } from "node:fs";
++import { closeSync, constants, createWriteStream, existsSync, lstatSync, readSync, readdirSync } from "node:fs";
+ import { copyFile, lstat, mkdir, mkdtemp, open, readFile, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
+ import { homedir, tmpdir } from "node:os";
+ import { dirname, extname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
+@@ -1481,7 +1481,7 @@ const ENGINE_PREFIX = "@deepseek-ai/libreoffice-kit";
+ * @returns true when at least one resolution directory holds the package.
+ */
+ function installedPackageExists(name) {
+-	return (require.resolve.paths(name) ?? []).some((directory) => lstatSync(join(directory, name), { throwIfNoEntry: false }) !== void 0);
++	return (require.resolve.paths(name) ?? []).some((directory) => existsSync(join(directory, name)));
+ }
+ /**
+ * Return the optional package target for the current process ABI.

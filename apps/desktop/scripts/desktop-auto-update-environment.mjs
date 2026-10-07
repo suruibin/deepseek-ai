@@ -23,6 +23,8 @@ const UPDATE_ENVIRONMENTS = {
 }
 
 const UPDATE_TARGETS = new Set(['mac-arm64', 'mac-x64', 'win-x64'])
+// Linux AppImage releases publish no update feed, but they still own a target build tree and record.
+const BUILD_RECORD_TARGETS = new Set([...UPDATE_TARGETS, 'linux-x64'])
 
 /**
  * Resolve the update deployment, defaulting local release work to test.
@@ -54,11 +56,11 @@ export function resolveDesktopAutoUpdateTarget(platform, arch) {
 
 /**
  * Return the local completion record filename for one packaged target.
- * @param {'mac-arm64' | 'mac-x64' | 'win-x64'} target - Supported release target.
+ * @param {'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-x64'} target - Supported release target.
  * @returns {string} Filename stored beside electron-builder artifacts.
  */
 export function desktopBuildRecordFilename(target) {
-  if (!UPDATE_TARGETS.has(target)) {
+  if (!BUILD_RECORD_TARGETS.has(target)) {
     throw new Error(`desktop auto-update: unsupported target ${target}`)
   }
   return `${target}-release.json`

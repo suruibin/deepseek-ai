@@ -7,6 +7,9 @@ export type DesktopAutoUpdateEnvironment = 'test' | 'production'
 /** Directory name of one supported Desktop release target. */
 export type DesktopAutoUpdateTarget = 'mac-arm64' | 'mac-x64' | 'win-x64'
 
+/** Desktop release targets that own an isolated build tree; Linux publishes no update feed. */
+export type DesktopBuildTarget = DesktopAutoUpdateTarget | 'linux-x64'
+
 /** Public updater URL and object prefixes for one release target. */
 export interface DesktopAutoUpdateConfig {
   readonly environment: DesktopAutoUpdateEnvironment
@@ -49,7 +52,7 @@ export function resolveDesktopAutoUpdateTarget(
  * @param target - Supported release target.
  * @returns Filename stored beside electron-builder artifacts.
  */
-export function desktopBuildRecordFilename(target: DesktopAutoUpdateTarget): string
+export function desktopBuildRecordFilename(target: DesktopBuildTarget): string
 
 /**
  * Return the electron-builder channel metadata filename for an application version.

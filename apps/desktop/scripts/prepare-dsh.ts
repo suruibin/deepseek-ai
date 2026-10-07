@@ -2,7 +2,7 @@
 
 import { packagingStep } from './packaging-step.mjs'
 import { spawn } from 'node:child_process'
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join, relative, resolve } from 'node:path'
 import { desktopNodeEnvironment } from '../src/node-environment.ts'
@@ -41,8 +41,31 @@ const STORE_ROOT = join(BUILD_ROOT, 'store')
 const RUNTIME_ROOT = BUILD_PATHS.runtime
 const PNPM_BUILD_STATE = BUILD_PATHS.dshPnpm
 const PACKAGE_SET_ROOT = BUILD_PATHS.packageSet
-const NODE = join(BUILD_PATHS.electron, process.platform === 'win32' ? 'electron.exe' : 'Electron.app/Contents/MacOS/Electron')
+const TARGET_PLATFORM = desktopTargetPlatform(resolveDesktopBuildTarget()).platform
+const NODE = join(BUILD_PATHS.electron,
+  TARGET_PLATFORM === 'win32' ? 'electron.exe'
+    : TARGET_PLATFORM === 'darwin' ? 'Electron.app/Contents/MacOS/Electron' : 'electron')
 const PNPM = join(RUNTIME_ROOT, 'pnpm', 'bin', 'pnpm.mjs')
+const PATCH_ROOT = resolve(APP_ROOT, '..', '..', 'patches')
+
+/**
+ * Workspace dependency patches the packaged runtime needs. The runtime installs into its own
+ * temporary project, so it inherits neither `patches/` nor `patchedDependencies` from the workspace.
+ */
+const RUNTIME_DEPENDENCY_PATCHES: readonly (readonly [specifier: string, file: string])[] = [
+  ['@deepseek-ai/libreoffice-kit@0.1.5', '@deepseek-ai__libreoffice-kit@0.1.5.patch'],
+]
+
+/** Copy the declared workspace patches into the runtime project and declare them to pnpm. */
+function stageRuntimeDependencyPatches(projectDir: string): void {
+  const directory = join(projectDir, 'patches')
+  mkdirSync(directory, { recursive: true })
+  const declarations = RUNTIME_DEPENDENCY_PATCHES.map(([specifier, file]) => {
+    copyFileSync(join(PATCH_ROOT, file), join(directory, file))
+    return `  '${specifier}': patches/${file}`
+  })
+  appendFileSync(join(projectDir, 'pnpm-workspace.yaml'), `patchedDependencies:\n${declarations.join('\n')}\n`)
+}
 
 function manifestVersion(path: string, subject: string): string {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as { version?: unknown }
@@ -121,6 +144,7 @@ async function main(): Promise<void> {
       copyFileSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGE_SET_FILE), join(BUILD_ROOT, DESKTOP_PACKAGE_SET_FILE))
       cpSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGES_DIR), join(BUILD_ROOT, DESKTOP_PACKAGES_DIR), { recursive: true })
       createRuntimeProjectMetadata(BUILD_ROOT, release)
+      stageRuntimeDependencyPatches(BUILD_ROOT)
     })
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
     verifyDesktopCoreLockfile(
@@ -130,7 +154,7 @@ async function main(): Promise<void> {
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile']))
     const packageSet = readDesktopCorePackageSet(BUILD_ROOT, release.version)
     const targetName = resolveDesktopBuildTarget()
-    const target = { platform: process.platform, arch: desktopTargetPlatform(targetName).arch }
+    const target = { platform: TARGET_PLATFORM, arch: desktopTargetPlatform(targetName).arch }
     const modules = join(BUILD_ROOT, 'node_modules')
     const officeManifest = JSON.parse(readFileSync(join(modules, '@deepseek-ai/libreoffice-kit/package.json'), 'utf8'))
     const officeEngine = selectOfficeEngine(officeManifest, target)

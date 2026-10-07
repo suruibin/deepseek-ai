@@ -40,5 +40,12 @@ export function desktopRuntimeFileExclusion(
     if (file.endsWith('.pdb')) return 'node-pty debug symbols'
   }
   if (name === '@koromix/koffi-win32-x64' && entry === 'win32_x64/koffi.lib') return 'Koffi import library'
+  // Sharp's prebuilt libvips carries its own glib, whose symbols collide with the host glib that
+  // Electron loads into the same Linux process. Requiring sharp then reports a missing native
+  // module instead of corrupting either glib's reference counts.
+  // See https://sharp.pixelplumbing.com/install#electron-and-linux
+  if (target.platform === 'linux' && (name === '@img/sharp-linux-x64' || name === '@img/sharp-libvips-linux-x64')) {
+    return 'sharp native binaries'
+  }
   return undefined
 }

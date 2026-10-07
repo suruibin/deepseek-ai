@@ -21,13 +21,14 @@ const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGN
 
 /**
  * Read the target's required UTF-8 dotenv file; release settings never fall back to ambient values.
- * @param {'win32' | 'darwin'} platform Target platform.
+ * @param {'win32' | 'darwin' | 'linux'} platform Target platform.
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained only for unrelated build tools.
  * @param {string} appRoot Desktop application directory; relative credential paths resolve here.
  * @returns {NodeJS.ProcessEnv} Isolated environment with file-owned release settings.
  */
 export function loadDesktopPackageEnvironment(platform, environment = process.env, appRoot = APP_ROOT) {
-  const path = join(appRoot, platform === 'win32' ? '.env.windows' : '.env.macos')
+  const filename = platform === 'win32' ? '.env.windows' : platform === 'darwin' ? '.env.macos' : '.env.linux'
+  const path = join(appRoot, filename)
   let contents
   try {
     contents = readFileSync(path, 'utf8')
@@ -43,9 +44,10 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
     // Parser diagnostics can contain credential-bearing input.
     throw new Error(`desktop package: invalid dotenv syntax in ${path}`)
   }
-  const platformSetting = platform === 'win32' ? WINDOWS_SETTING : MACOS_SETTING
+  // Linux releases sign nothing and publish no update feed, so only shared settings are accepted.
+  const platformSetting = platform === 'win32' ? WINDOWS_SETTING : platform === 'darwin' ? MACOS_SETTING : undefined
   for (const name of Object.keys(settings)) {
-    if (!SHARED_SETTING.test(name) && !platformSetting.test(name)) {
+    if (!SHARED_SETTING.test(name) && !(platformSetting?.test(name) ?? false)) {
       throw new Error(`desktop package: unsupported setting ${name} in ${path}; use the platform template`)
     }
     if (settings[name].includes('\0')) throw new Error(`desktop package: ${name} cannot contain a NUL character`)
@@ -72,13 +74,16 @@ function requireReadableFile(environment, name) {
 /**
  * Validate release configuration before preparation without invoking a token or Apple's services.
  * @param {NodeJS.ProcessEnv} environment File-owned release settings.
- * @param {{ platform: 'win32' | 'darwin', arch: string }} target Selected release target.
+ * @param {{ platform: 'win32' | 'darwin' | 'linux', arch: string }} target Selected release target.
  * @param {{ unsigned?: boolean, prepareOnly?: boolean }} options Explicit packaging mode.
  * @returns {void}
  */
 export function validateDesktopPackageEnvironment(environment, target, options = {}) {
   resolveDesktopAppId(environment)
   resolveNpmRegistry(environment)
+  // Linux AppImage releases publish no update feed and poll no mandatory-update policy, so they name
+  // no deployment origin and require neither updater nor signing configuration.
+  if (target.platform === 'linux') return
   resolveDesktopPolicyEnvironment(environment)
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
