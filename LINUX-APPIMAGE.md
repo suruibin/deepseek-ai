@@ -2,6 +2,14 @@
 
 > 本仓库是**个人快照**（非官方），基于官方 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 在提交 `5badb15009`（v0.2.1-alpha.1）的源码，并附带一组让官方打包流水线产出 **Linux AppImage** 的补丁。
 
+## 版本记录
+
+| 上游版本 | 上游提交 | 补丁文件数 | 本次适配的增量改动 |
+| --- | --- | --- | --- |
+| v0.2.1-alpha.1 | `5badb15009` | 36 | Linux 打包目标全量打通（见「为什么需要补丁」）；其中相对 v0.2.1 上游源码额外移除了 Linux 窗口顶部的原生应用菜单 |
+
+同步新版本时在此追加一行，并更新上表与「这个仓库里有什么」里的文件数。
+
 ## 这个仓库里有什么
 
 | 文件 | 说明 |
@@ -32,6 +40,38 @@
 - `patches/@deepseek-ai__libreoffice-kit@0.1.5.patch`（配 `pnpm-workspace.yaml` 的 `patchedDependencies`）：把 Office 引擎探测从 `lstatSync(path, { throwIfNoEntry: false })` 改为 `existsSync(path)`。Electron 的 ASAR `fs` 垫片对该选项返回**不存在的路径也存在的 Stats**，于是 `libreoffice-kit` 误判「原生引擎已装但不完整」而抛错，永远回退不到 Linux 上的 WASM 引擎（原因见「已知限制」）
 - `prepare-dsh.ts` 的 `stageRuntimeDependencyPatches`：Desktop 运行时安装在自己的临时工程里，既不继承 workspace 的 `patches/` 也不继承 `patchedDependencies`，所以该步骤把上面这个补丁复制进运行时工程并向 pnpm 声明
 - `apps/desktop/src/main.ts`、`apps/desktop/tests/main-startup.spec.ts`：Linux 不再安装原生应用菜单（`Menu.setApplicationMenu(null)`）。Electron 会把应用菜单画进窗口内顶部，于是窗口上多出一行中文「应用」+ Electron 内置英文「Edit」；这行与 Web 客户端自管的窗口顶栏重复，Linux 上直接不装。`apps/desktop/README.md` 与 `README.zh.md` 同步措辞
+
+## 迁移到新上游版本
+
+补丁按「存量改动」维护，不依赖 git 历史：换到新的上游快照后重新套用即可。本文档与 `dsh-linux-appimage.patch` 是唯一的改动记录，两份要一起更新。
+
+1. **建新树 + 快照提交**：取新版本上游源码放进新目录，先提交一次干净快照（如 `snapshot: deepseek-harness vX.Y.Z`）。补丁的基线就是这个快照提交。
+2. **应用补丁**：先 `git apply --check dsh-linux-appimage.patch` 干跑，通过后再 `git apply`。跨大版本时冲突集中在 `apps/desktop/scripts/*`（目标白名单、Electron 可执行文件路径、打包阶段选择）与 `pnpm-lock.yaml`，按上面「为什么需要补丁」的逐项说明重套，不要整体丢弃。
+3. **补丁声明与 lockfile 一起改**（漏一处就会在安装或冒烟阶段报错）：
+   - `patches/@deepseek-ai__libreoffice-kit@<版本>.patch` 的文件名随依赖版本变，`pnpm-workspace.yaml` 的 `patchedDependencies` 键写成 `'<包名>@<版本>'`；
+   - `pnpm-lock.yaml` 三处同步：顶部 `patchedDependencies` 的 hash、importer 的 `version: <版本>(patch_hash=<64hex>)`、`snapshots:` 键名加同后缀（`packages:` 段保持裸名）；
+   - `pnpm install --frozen-lockfile` 必须 exit 0，否则是 hash 或键名写错；
+   - `THIRD_PARTY_NOTICES.md` 用它的生成脚本重跑。
+4. **重新生成补丁并校验**：
+
+   ```bash
+   git diff --binary <快照提交> -- . \
+     ':(exclude)LINUX-APPIMAGE.md' \
+     ':(exclude)build-dsh-appimage.sh' \
+     ':(exclude)dsh-linux-appimage.patch' > dsh-linux-appimage.patch
+   git apply --check -R dsh-linux-appimage.patch   # 反向干跑必须通过
+   ```
+
+   `--binary` 不能省：否则 `apps/desktop/resources/icon-linux.png` 只剩一行「Binary files differ」，`git apply` 无法还原图标。随后同步本文档表格里的「N 个文件」与第 3 行的上游提交号。
+5. **编译**：`./build-dsh-appimage.sh`。脚本幂等——检测到 `apps/desktop/scripts/desktop-build-paths.mjs` 已含 `'linux-x64'` 就跳过套补丁。
+
+### 复用时的坑
+
+- **后台构建的外层退出码不可信**：`./build-dsh-appimage.sh > log 2>&1` 的外层永远是 0，成败看日志尾部——成功是 `==> 完成:` 加 `sha256sum` 行，失败是 `错误:` 行；完整日志同时落在输出目录的 `build-<时间戳>.log`。
+- **试运行前确认没有旧实例**：AppImage 带单实例锁，已有实例在跑时新进程会立刻 exit 0（表现为「秒退」，容易误判为崩溃）。清干净后 `timeout 30 <AppImage> --ozone-platform=wayland --no-sandbox` 的正常结果是 **exit 124**，且日志出现 `dsh web: http://127.0.0.1:...`。
+- **不要在 `app.asar.unpacked` 里改文件做验证**：ASAR 完整性校验会直接报错，改动必须在打包前落到源码。
+- **搜索要避开 `app.asar`**：`grep`/`ripgrep` 扫 `apps/desktop/` 会命中这个上百 MB 的二进制，输出全是噪音，限定路径或排除 `*.asar`。
+- **网络**：脚本在本地代理端口不通时自动改走直连；registry 与 npmmirror 直连可用，但 `git clone`/`git push` 到 GitHub 仍需要代理。
 
 ## 前置依赖
 
