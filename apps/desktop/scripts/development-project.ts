@@ -12,6 +12,11 @@ import {
   unlinkSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import {
+  applyDevelopmentProjectPlugins,
+  developmentPluginRegistry,
+  seedDevelopmentPlugins,
+} from '../src/development-plugins.ts'
 import { createDevelopmentProjectMetadata } from '../src/project-manager.ts'
 import type { DesktopRelease } from '../src/release.ts'
 
@@ -32,6 +37,8 @@ export interface DevelopmentProjectOptions {
   readonly dependencyDir: string
   /** Release identity written into the disposable project metadata. */
   readonly release: DesktopRelease
+  /** Local plugin package directories installed when no plugin inventory exists yet. */
+  readonly pluginDirs?: readonly string[]
 }
 
 function readManifest(path: string): PackageManifest {
@@ -106,6 +113,7 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   }
 
   removeOwnedPath(options.projectDir)
+  const plugins = seedDevelopmentPlugins(developmentPluginRegistry(options.projectDir), options.pluginDirs ?? [])
   createDevelopmentProjectMetadata(options.projectDir, options.release)
   const destinationModules = join(options.projectDir, 'node_modules')
   mkdirSync(destinationModules, { recursive: true })
@@ -116,5 +124,6 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   const hostLink = join(destinationModules, '@deepseek-ai', 'dsh-desktop-host')
   removeOwnedPath(hostLink)
   linkDirectory(options.hostDir, hostLink)
+  applyDevelopmentProjectPlugins(options.projectDir, plugins)
   return options.projectDir
 }

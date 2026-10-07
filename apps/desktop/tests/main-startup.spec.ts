@@ -35,6 +35,7 @@ const harness = await vi.hoisted(async () => {
     readonly show = vi.fn()
     readonly focus = vi.fn()
     readonly restore = vi.fn()
+    readonly setMenuBarVisibility = vi.fn()
     constructor(readonly options: { show: boolean }) { super(); windows.push(this) }
     isDestroyed() { return this.destroyed }
     isMinimized() { return false }

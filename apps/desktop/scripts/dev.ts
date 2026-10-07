@@ -13,6 +13,21 @@ const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
 const BUILD_ROOT = join(APP_ROOT, '.desktop-build')
 const DEVELOPMENT_ROOT = join(BUILD_ROOT, 'development')
+/** Local plugin checkouts installed when the development plugin inventory does not exist yet. */
+const DEFAULT_DEV_PLUGINS = '/projects/Harness_Plugins/dsh-glass-theme'
+
+/**
+ * Resolve local plugins used to seed the development inventory.
+ *
+ * The unpackaged shell runs a generated project instead of the managed profile, so plugins
+ * are installed from their own directories and recorded in a manifest next to that project
+ * (managed afterwards from the Desktop Plugins window). `DSH_DESKTOP_DEV_PLUGINS` overrides
+ * the seed list (comma separated; empty installs nothing on a fresh inventory).
+ */
+function developmentPlugins(): readonly string[] {
+  const configured = process.env.DSH_DESKTOP_DEV_PLUGINS ?? DEFAULT_DEV_PLUGINS
+  return configured.split(',').map(value => value.trim()).filter(value => value !== '')
+}
 
 interface PackageManifest {
   readonly version?: string
@@ -101,13 +116,16 @@ async function main(): Promise<void> {
     nodeVersion: process.versions.node,
     pnpmVersion,
   }
+  const pluginDirs = developmentPlugins()
   prepareDevelopmentProject({
     projectDir: join(DEVELOPMENT_ROOT, 'project'),
     cliDir: join(REPOSITORY_ROOT, 'apps', 'cli'),
     hostDir: join(REPOSITORY_ROOT, 'apps', 'desktop-host'),
     dependencyDir: join(REPOSITORY_ROOT, 'node_modules', '.pnpm', 'node_modules'),
     release,
+    pluginDirs,
   })
+  console.log(`desktop development: linked plugins=${pluginDirs.length === 0 ? 'none' : pluginDirs.join(', ')}`)
   await launchElectron()
 }
 

@@ -28,6 +28,7 @@ import type {} from '@deepseek-ai/dsh-api-gateway'
 import type { ConnectionFetchHandler } from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-client-modules'
 import { renderIndexInjections, type IndexInjection } from '@deepseek-ai/dsh-host-webserver'
+import { provideDesktopServices } from './desktop-services.ts'
 import {
   DESKTOP_HOST_PROTOCOL_VERSION,
   DESKTOP_PIPE_CHUNK_BYTES,
@@ -283,6 +284,76 @@ interface NodeRequestInit extends RequestInit {
 }
 
 /**
+ * Request headers the loopback hop recomputes: hop-by-hop names plus the ones
+ * describing Electron's `dsh-app://` carrier rather than the route it reaches.
+ * `host` and `origin` are rewritten rather than dropped — plugin routes guard
+ * their mutating and download paths by comparing them.
+ */
+const LOOPBACK_DROP_HEADERS = new Set([
+  'accept-encoding', 'connection', 'content-length', 'expect', 'host', 'keep-alive',
+  'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+])
+
+/**
+ * Response headers the loopback hop consumes: node writes chunked framing and
+ * connection management for a socket this process is not on, and the framed
+ * byte pipe already delimits the body Electron receives.
+ */
+const LOOPBACK_DROP_RESPONSE_HEADERS = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+])
+
+/**
+ * Answer a request owned by a plugin-registered route.
+ *
+ * Plugin surfaces (the market) register node routes on `webServer` and write
+ * raw node responses, but Electron's protocol handler has no socket to reach
+ * them through. Replaying the request against the loopback port keeps one
+ * implementation serving both carriers.
+ * Exported for the carrier-proxy test, which drives it against a real loopback
+ * server and asserts the request a plugin route receives.
+ * @param ctx - Host context, read per request because plugin routes register after boot.
+ * @param request - request reconstructed from Electron's protocol handler.
+ * @returns the route's response, or undefined when no route owns the pathname.
+ */
+export async function pluginRouteFetch(ctx: Context, request: Request): Promise<Response | undefined> {
+  const server = ctx.get('webServer')
+  if (server === undefined) return undefined
+  const source = new URL(request.url)
+  if (!server.hasRoute(source.pathname)) return undefined
+  const authority = `127.0.0.1:${String(server.port)}`
+  const headers = new Headers()
+  for (const [name, value] of request.headers) {
+    if (!LOOPBACK_DROP_HEADERS.has(name.toLowerCase())) headers.append(name, value)
+  }
+  // Plugin routes decide whether a mutating or export request is same-origin by
+  // comparing Origin's host with Host. `dsh-app://app` is the carrier's
+  // identity, not the authority the request lands on, so the hop presents
+  // itself exactly as an ordinary loopback browser request would.
+  headers.set('host', authority)
+  headers.set('origin', `http://${authority}`)
+  // `dsh-app:` is a non-special scheme, so mutating protocol/host on the parsed
+  // source URL is silently ignored; only a fresh absolute http URL moves the
+  // request onto the loopback socket.
+  const target = new URL(`${source.pathname}${source.search}`, `http://${authority}`)
+  const init: NodeRequestInit = {
+    method: request.method,
+    headers,
+    redirect: 'manual',
+    signal: request.signal,
+    ...(request.body === null ? {} : { body: request.body, duplex: 'half' }),
+  }
+  const response = await fetch(target, init)
+  const responseHeaders = new Headers()
+  for (const [name, value] of response.headers) {
+    if (!LOOPBACK_DROP_RESPONSE_HEADERS.has(name.toLowerCase())) responseHeaders.append(name, value)
+  }
+  return new Response(response.body, {
+    status: response.status, statusText: response.statusText, headers: responseHeaders,
+  })
+}
+
+/**
  * Boot one installed desktop npm project.
  * @param runtimeDir - immutable dsh packages supplied by the Electron application.
  * @param projectDir - active or staged Electron-owned desktop profile.
@@ -311,6 +382,7 @@ export async function runDesktopHost(
   const ctx = await boot('dsh desktop', rootConfig, structuredClone(composition.patches), async (hostCtx) => {
     current = hostCtx
     hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
+    provideDesktopServices(hostCtx, { profileDir: absoluteProject, runtimeDir: absoluteRuntime })
     await hostCtx.plugin(PluginPackages, { generation: resolution })
     provideCmdline(hostCtx, { args: [], exit: () => {} })
   })
@@ -360,7 +432,7 @@ export async function runDesktopHost(
           ? await streams.fetch(request)
           : url.pathname.startsWith('/api/')
             ? await api.fetch(request)
-            : await assets.fetch(request)
+            : (await pluginRouteFetch(ctx, request)) ?? (await assets.fetch(request))
         await writeResponse(encodeDesktopResponseStart(command.streamId, {
           status: response.status,
           headers: [...response.headers.entries()],

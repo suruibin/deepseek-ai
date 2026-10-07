@@ -216,6 +216,15 @@ describe('real Loader composition', () => {
     expect(await request(port, '/api')).toMatchObject({ status: 200, body: 'API' })
     expect(await request(port, '/api/anything', { method: 'POST' })).toMatchObject({ status: 200, body: 'API' })
 
+    // Socket-less carriers (Electron's protocol handler) ask the same tables
+    // whether a route owns a pathname, so they know when to proxy to `port`
+    // instead of serving their own assets.
+    expect(server.hasRoute('/probe')).toBe(true)
+    expect(server.hasRoute('/api')).toBe(true)
+    expect(server.hasRoute('/api/deep')).toBe(true)
+    expect(server.hasRoute('/apix')).toBe(false)
+    expect(server.hasRoute('/no/such/route')).toBe(false)
+
     // Fallback seat: 404 while unclaimed; the owner answers everything no
     // named route matches; index taps are the owner's to apply; the seat
     // admits exactly one owner and the disposer releases it.
@@ -234,6 +243,9 @@ describe('real Loader composition', () => {
     untap()
     expect((await request(port, '/no/such/route')).body).not.toContain('__T__')
     expect((await request(port, '/no/such/route')).body).toContain('shell')
+    // The fallback seat is not a named route: a socket-less carrier keeps
+    // serving its own assets for paths no plugin registered.
+    expect(server.hasRoute('/no/such/route')).toBe(false)
 
     // Per-request error containment: a malformed %-escape answers 400 and the
     // server keeps serving afterwards (no process-level failure path).
@@ -247,6 +259,7 @@ describe('real Loader composition', () => {
     const disposeOnce = server.register({ kind: 'exact', path: '/once', handler: (_req, res) => { res.writeHead(200); res.end('ONCE') } })
     expect(await request(port, '/once')).toMatchObject({ status: 200, body: 'ONCE' })
     disposeOnce()
+    expect(server.hasRoute('/once')).toBe(false)
     expect((await request(port, '/once')).body).toContain('shell') // back to the fallback owner
     expect(() => server.register({ kind: 'exact', path: '/once', handler: () => {} })).not.toThrow()
 

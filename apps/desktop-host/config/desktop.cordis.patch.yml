@@ -1,10 +1,17 @@
-# Electron reuses the browser composition without its network and browser-launch rows.
-
+# Electron reuses the browser composition without its URL-printing and
+# browser-launch rows. The loopback carrier stays mounted: Electron does not
+# serve HTTP itself, but plugin surfaces (the market) register node routes on
+# `webServer`, and the `dsh-app://` handler proxies the paths this carrier
+# owns. It binds an OS-assigned loopback port and never prints a URL.
 - id: web-startup
   disabled: true
 
 - id: webserver
-  disabled: true
+  inject: []
+  config:
+    host: 127.0.0.1
+    port: 0
+    compression: none
 
 - id: web-runtime
   disabled: true

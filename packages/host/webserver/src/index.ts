@@ -314,6 +314,17 @@ export class WebServer extends Service {
     }, 'webServer.listen')
   }
 
+  /**
+   * Whether a named route owns this pathname — the query carriers without a
+   * listening socket (Electron's `dsh-app://` handler) ask to decide between
+   * proxying to {@link port} and serving their own assets.
+   * @param pathname - absolute request pathname, no trailing slash.
+   * @returns true when a registered route would answer this path.
+   */
+  hasRoute(pathname: string): boolean {
+    return this.match(pathname) !== undefined
+  }
+
   /** Longest-prefix-wins over the prefix table after an exact-table miss. */
   private match(pathname: string): WebRoute | undefined {
     const exact = this.exact.get(pathname)

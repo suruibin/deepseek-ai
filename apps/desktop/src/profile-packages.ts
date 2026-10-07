@@ -243,7 +243,7 @@ export function validateDesktopPluginGraph(
       const host = shared.get(name)
       if (host !== undefined && name in deps) throw new Error(`desktop profile: ${chain} must declare ${name} as a peer dependency`)
       if (host !== undefined) {
-        if (peer && !satisfies(host.version, range)) {
+        if (peer && !satisfies(host.version, range, { includePrerelease: true })) {
           throw new Error(`desktop profile: ${chain} requires ${name}@${range}, found ${host.version}`)
         }
         continue
@@ -255,7 +255,7 @@ export function validateDesktopPluginGraph(
         throw new Error(`desktop profile: ${chain} resolves ${name} outside its owned packages`)
       }
       const dependency = manifest(target)
-      if (peer && !satisfies(dependency.version, range)) {
+      if (peer && !satisfies(dependency.version, range, { includePrerelease: true })) {
         throw new Error(`desktop profile: ${chain} requires ${name}@${range}, found ${dependency.version}`)
       }
       visit(target, `${chain} -> ${name}`)

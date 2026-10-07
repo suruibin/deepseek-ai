@@ -13,7 +13,18 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
-import { DesktopProjectManager, type DesktopProjectHooks } from './project-manager.ts'
+import {
+  DesktopProjectManager,
+  type DesktopProjectHooks,
+  type DesktopProjectMutation,
+} from './project-manager.ts'
+import {
+  applyDevelopmentProjectPlugins,
+  developmentPluginRegistry,
+  mutateDevelopmentPlugins,
+  readDevelopmentPlugins,
+  writeDevelopmentPlugins,
+} from './development-plugins.ts'
 import { DesktopHostProcess } from './host-process.ts'
 import { DesktopBackendController, type DesktopBackendState } from './backend-controller.ts'
 import { DESKTOP_IPC, type DesktopUpdateState } from './ipc.ts'
@@ -158,6 +169,7 @@ async function main(): Promise<void> {
   const resources = runtimeResources()
   const paths = resolveDesktopPaths()
   const development = app.isPackaged ? undefined : join(app.getAppPath(), '.desktop-build', 'development', 'project')
+  const developmentRegistry = development === undefined ? undefined : developmentPluginRegistry(development)
   const activeProject = development ?? paths.profile
   const manager = new DesktopProjectManager(paths, resources)
   profileRecoveryAvailable = () => development === undefined && manager.canRecoverProfile()
@@ -302,16 +314,30 @@ async function main(): Promise<void> {
     return active.fetch(request)
   })
 
+  /**
+   * Install, remove, or toggle a local plugin checkout inside the disposable project.
+   * The registry survives project rebuilds, so the inventory outlives this launch.
+   */
+  const mutateDevelopmentProject = async (mutation: DesktopProjectMutation): Promise<void> => {
+    if (development === undefined || developmentRegistry === undefined) {
+      throw new Error('dsh desktop: the development project is unavailable')
+    }
+    const previous = readDevelopmentPlugins(developmentRegistry)
+    const plugins = mutateDevelopmentPlugins(previous, mutation)
+    await hooks.beforeChange()
+    writeDevelopmentPlugins(developmentRegistry, plugins)
+    applyDevelopmentProjectPlugins(development, plugins, previous.map(plugin => plugin.name))
+    await hooks.afterChange()
+  }
+
   const mutate = async (event: IpcMainInvokeEvent, mutation: Parameters<DesktopProjectManager['mutate']>[0]): Promise<void> => {
     assertDesktopSender(event, ['shell'])
-    if (development !== undefined) {
-      throw new Error('dsh desktop: plugin package changes require a packaged application')
-    }
     await startup?.catch(() => undefined)
     pageError = undefined
     await navigateMain(startupUrl)
     try {
-      await manager.mutate(mutation, hooks)
+      if (development === undefined) await manager.mutate(mutation, hooks)
+      else await mutateDevelopmentProject(mutation)
       await navigateMain(applicationUrl)
     } catch (error) {
       await showStartupError(error)
@@ -324,8 +350,8 @@ async function main(): Promise<void> {
   })
   ipcMain.handle(DESKTOP_IPC.pluginsList, (event) => {
     assertDesktopSender(event, ['shell'])
-    if (development !== undefined) return []
-    return manager.listPlugins()
+    if (developmentRegistry === undefined) return manager.listPlugins()
+    return readDevelopmentPlugins(developmentRegistry).map(({ name, version, enabled }) => ({ name, version, enabled }))
   })
   ipcMain.handle(DESKTOP_IPC.pluginsAdd, (event, spec: unknown) => {
     if (typeof spec !== 'string') throw new Error('dsh desktop: plugin spec must be a string')
@@ -445,9 +471,8 @@ async function main(): Promise<void> {
     label: process.platform === 'darwin' ? app.name : messages.application,
     submenu: [
       {
-        label: development === undefined ? messages.pluginsMenu : messages.pluginsMenuPackagedOnly,
+        label: messages.pluginsMenu,
         accelerator: 'CmdOrCtrl+,',
-        enabled: development === undefined,
         click: openPluginWindow,
       },
       { label: messages.checkUpdatesMenu, click: () => { void checkAndPrompt(true) } },

@@ -80,7 +80,8 @@ export type DesktopProjectMutation =
 const PROJECT_NAME = '@deepseek-ai/dsh-desktop-runtime'
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 const CORE_BUILD_PACKAGE = '@deepseek-ai/dsh-subprocess-local'
-const DESKTOP_PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] as const
+/** Built-in bundles every desktop profile activates before its own plugins. */
+export const DESKTOP_PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] as const
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\nstrictDepBuilds: true\n'
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._~-]*\/[a-z0-9][a-z0-9._~-]*|[a-z0-9][a-z0-9._~-]*)$/u
 const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.+_-]*$/u
@@ -462,6 +463,11 @@ export class DesktopProjectManager {
         cwd: projectDir,
         env: {
           ...inherited,
+          // The packaged shell spawns its own Electron binary as the bundled Node.js, so it must
+          // opt into Node mode the same way the host process does; without it the child boots a
+          // second GUI instance, loses the single-instance claim, and reports success without
+          // running pnpm.
+          ELECTRON_RUN_AS_NODE: '1',
           COREPACK_HOME: this.paths.pnpm.home,
           NPM_CONFIG_REGISTRY: DESKTOP_REGISTRY,
           NPM_CONFIG_STORE_DIR: this.paths.pnpm.store,
@@ -589,10 +595,14 @@ export function createRuntimeProjectMetadata(projectDir: string, release: Deskto
 
 /**
  * Create metadata for the unpackaged development project that links the current workspace.
+ *
+ * Installed local plugins are written afterwards by the development plugin inventory.
  * @param projectDir - Disposable development profile directory.
  * @param release - Release identity shared by the linked CLI package and Electron shell.
  */
-export function createDevelopmentProjectMetadata(projectDir: string, release: DesktopRelease): void {
+export function createDevelopmentProjectMetadata(
+  projectDir: string, release: DesktopRelease,
+): void {
   mkdirSync(projectDir, { recursive: true, mode: 0o700 })
   const manifest = {
     name: PROJECT_NAME,
